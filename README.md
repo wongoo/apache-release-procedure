@@ -100,8 +100,7 @@ $ gpg --fingerprint wongoo
 以上可以参考其他已发布项目的配置。
 
 
-```
-
+```bash
 # NOTICE: 这里切分支，分支名称不要和版本号（tag用）类似，不然会有冲突
 $ git checkout -b 1.3
 
@@ -130,7 +129,7 @@ $ shasum --check dubbo-go-hessian2-v1.3.0-src.tar.gz.sha512
 
 ## 3. 上传打包文件到svn仓库
 
-```
+```bash
 $ svn checkout https://dist.apache.org/repos/dist/dev/dubbo
 
 $ cd dubbo
@@ -183,7 +182,8 @@ PMC投票会对你上传打包文件进行相关检查,
 注意文件名字中不要rcxx (可以rename，但不要重新计算签名，hash可以重新计算，结果不会变)。
 
 将release包移动到正式版目录。如果你的软件是需要客户从apache下载的，则这一步是必须的。如果不是，比如golang引用github打包地址的则可以忽略。
-```
+
+```bash
 svn up
 cd dubbo-go-hessian2
 svn move v1.3.0-rc1 v1.3.0

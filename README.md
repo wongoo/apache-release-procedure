@@ -8,7 +8,12 @@ Apache开源软件是有社区驱动的，为了提高发布软件质量而指�
 
 如果你要准备打包一个apache软件了，想必你已经是一个项目的committer了，而且知道社区、PMC这些概念，而你现在还担任本次发布的 release manager 一职。
 
-发版流程其实也很简单，无非如下：
+打包发版之前，假定以下事情已经完成了：
+- 合并了相关的PR;
+- 解决了相关的ISSUE;
+- 和社区讨论过要发布的版本内容以及要发布的版本号；
+
+发版流程其实很简单，无非如下：
 1. 整理变更内容，打包并对打包文件签名；
 2. 将签名文件上传apache svn仓库；
 3. 发邮件请社区PMC大佬投票；
@@ -24,7 +29,11 @@ Apache开源软件是有社区驱动的，为了提高发布软件质量而指�
 发版文件需要签名，需要安装pgp工具. 
 
 ```bash
+# for mac
 $ brew install gpg
+# for linux
+# yum install gnupg
+
 $ gpg --version
 $ gpg --full-gen-key
 	(1) RSA and RSA (default)  <-- RSA 类型
@@ -68,7 +77,7 @@ default-key 7DB68550D366E4C0
 
 # 如果有多个public key, 也可以删除无用的key：
 ### 先删除私钥，再删除公钥
-$ gpg --yes --delete-secret-keys shenglicao2@gmail.com   ###老的私钥，指明邮箱即可
+$ gpg --yes --delete-secret-keys xxxx@gmail.com   ###老的私钥，指明邮箱即可
 $ gpg --delete-keys 1808C6444C781C0AEA0AAD4C4D6A8007D20DB8A4
 
 ## 由于公钥服务器没有检查机制，任何人都可以用你的名义上传公钥，所以没有办法保证服务器上的公钥的可靠性。
@@ -88,6 +97,8 @@ $ gpg --fingerprint wongoo
 > - 发布签名: http://www.apache.org/dev/release-signing.html
 > - 发布策略: http://www.apache.org/dev/release-distribution
 > - 将密钥上传到公共密钥服务器: https://www.apache.org/dev/openpgp.html#generate-key
+
+
 
 ## 2. 打包签名
 
@@ -207,9 +218,76 @@ svn commit  --username wongoo -m "Release dubbo-go-hessian2 v1.3.0"
 
 ### 7.2 java
 
-java项目发版需发布到java maven仓库。
+java项目发版需发布到java maven仓库。 详见 http://www.apache.org/dev/publishing-maven-artifacts.html
 
-TODO
+#### 7.2.1 maven 配置
+
+添加以下内容到.m2/settings.xml
+所有密码请使用[maven-encryption-plugin](http://maven.apache.org/guides/mini/guide-encryption.html)加密后再填入。
+```xml
+<settings>
+...
+ <servers>
+   <!-- To publish a snapshot of some part of Maven -->
+   <server>
+     <id>apache.snapshots.https</id>
+     <username> <!-- YOUR APACHE LDAP USERNAME --> </username>
+     <password> <!-- YOUR APACHE LDAP PASSWORD (encrypted) --> </password>
+   </server>
+   <!-- To stage a release of some part of Maven -->
+   <server>
+     <id>apache.releases.https</id>
+     <username> <!-- YOUR APACHE LDAP USERNAME --> </username>
+     <password> <!-- YOUR APACHE LDAP PASSWORD (encrypted) --> </password>
+   </server>
+  ...
+     <!-- gpg passphrase used when generate key -->
+    <server>
+     <id>gpg.passphrase</id>
+     <passphrase><!-- yourKeyPassword --></passphrase>
+   </server>
+ </servers>
+</settings>
+```
+
+#### 7.2.1 maven 打包
+
+首先，在`${release_version}-release`分支验证maven组件打包、source源码打包、签名等是否都正常工作。
+
+```bash
+$ mvn clean install -Prelease
+$ mvn deploy
+```
+上述命令将snapshot包推送到maven中央仓库
+
+修改pom文件中的版本号，从2.7.x-SNAPSHOT改为2.7.x， 目前有3个地方需要修改。建议全文搜索。
+
+```bash
+$ mvn clean install -Prelease
+$ mvn deploy -Prelease -DskipTests
+```
+
+所有被deploy到远程[maven仓库](http://repository.apache.org)的Artifacts都会处于staging状态
+
+> 注意：
+> - 在deploy执行过程中，有可能因为网络等原因被中断，如果是这样，可以重新开始执行。
+> - deploy执行到maven仓库的时候，请确认下包的总量是否正确。多次出现了包丢失的情况，特别是dubbo-parent包。
+
+```bash
+# 拷贝`distribution/target`下的source相关的包到svn本地仓库`dubbo/${release_version}`
+
+$ shasum -a 512 apache-dubbo-${release_version}-source-release.zip >> apache-dubbo-${release_version}-source-release.zip.sha512
+
+# 如果有binary release要同时发布, 针对`bin-release.zip`，需要增加`-b`参数，表明是一个二进制文件
+$ shasum -b -a 512 apache-dubbo-${release_version}-bin-release.zip >> apache-dubbo-${release_version}-bin-release.zip.sha512
+```
+
+关闭Maven的staging仓库: 
+登录http://repository.apache.org，点击左侧的 `Staging repositories`，然后搜索Dubbo关键字，会出现一系列的仓库，选择你最近上传的仓库，然后点击上方的Close按钮，这个过程会进行一系列检查，检查通过以后，在下方的Summary标签页上出现一个连接，请保存好这个链接，需要放在接下来的投票邮件当中。
+链接应该是类似这样的: https://repository.apache.org/content/repositories/orgapachedubbo-101
+
+> 请注意点击Close可能会出现失败，通常是网络原因，只要重试几次就可以了。可以点击Summary旁边的Activity标签来确认。
+
 
 ### 7.3 js
 

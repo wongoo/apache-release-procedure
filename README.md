@@ -21,7 +21,7 @@ Apache开源软件是有社区驱动的，为了提高发布软件质量而指�
 5. 发版
 6. 发版邮件通告社区新版本发布；
 
-下面详细整理发版的一些流程步骤，使用 dubbo 的子项目 dubbog-go-hessian2 发版为例！
+下面详细整理发版的一些流程步骤！
 
 
 ## 1. 发版准备
@@ -93,6 +93,8 @@ $ gpg --fingerprint wongoo
 	# https://id.apache.org  OpenPGP Public Key Primary Fingerprint:
 ```
 
+如果是java项目需要配置maven仓库密码, 参考 7.2.1. 
+
 > 详细参考：
 > - 发布签名: http://www.apache.org/dev/release-signing.html
 > - 发布策略: http://www.apache.org/dev/release-distribution
@@ -110,6 +112,7 @@ $ gpg --fingerprint wongoo
 
 以上可以参考其他已发布项目的配置。
 
+以下 使用 dubbo 的子项目 dubbog-go-hessian2 打包为例！
 
 ```bash
 # NOTICE: 这里切分支，分支名称不要和版本号（tag用）类似，不然会有冲突
@@ -136,7 +139,8 @@ $ shasum --check dubbo-go-hessian2-v1.3.0-src.tar.gz.sha512
 
 ```
 
-> 发布版本: http://www.apache.org/dev/release-publishing.html
+java打包参考: `7.2.2 maven 打包`
+
 
 ## 3. 上传打包文件到svn仓库
 
@@ -149,8 +153,10 @@ $ cd dubbo
 # 这里是将公钥KEYS放到根目录, 有的项目放到本次打包文件目录
 $ (gpg --list-sigs wongoo && gpg --armor --export wongoo) >> KEYS
 
+# 建立版本目录, 注意这里包含子项目目录
 $ mkdir -p dubbo-go-hessian2/v1.3.0-rc1
 
+# 复制签名好的文件到版本目录下
 $ tree dubbo-go-hessian2
 dubbo-go-hessian2
 └── v1.3.0-rc1
@@ -186,6 +192,7 @@ PMC投票会对你上传打包文件进行相关检查,
 
 可以参考投票规则: https://www.apache.org/foundation/voting.html
 
+
 ## 5. 发布版本
 
 当正式发布投票成功后，先发[Result]邮件，然后就准备 release package。 
@@ -205,6 +212,8 @@ svn commit  --username wongoo -m "Release dubbo-go-hessian2 v1.3.0"
 移到发版目录后，还需要进行相应的正式版本发布， 这里将具体发布方式整理到单独的章节 `7. 不同语言版本发布`，因为发布流程马上就要结束了 ^v^
 
 
+> 发布版本: http://www.apache.org/dev/release-publishing.html
+
 ## 6. 新版本通告 ANNOUNCE 邮件
 
 恭喜你你已经到发版最后一步了，邮件格式参考以下邮件范本！
@@ -219,6 +228,8 @@ svn commit  --username wongoo -m "Release dubbo-go-hessian2 v1.3.0"
 ### 7.2 java
 
 java项目发版需发布到java maven仓库。 详见 http://www.apache.org/dev/publishing-maven-artifacts.html
+
+以下以 dubbo 的 2.7.4 版本为例。
 
 #### 7.2.1 maven 配置
 
@@ -250,44 +261,56 @@ java项目发版需发布到java maven仓库。 详见 http://www.apache.org/dev
 </settings>
 ```
 
-#### 7.2.1 maven 打包
+#### 7.2.2 maven 打包
 
-首先，在`${release_version}-release`分支验证maven组件打包、source源码打包、签名等是否都正常工作。
+【首先】 在`2.7.4-release`分支验证maven组件打包、source源码打包、签名等是否都正常工作。
 
 ```bash
 $ mvn clean install -Prelease
+
+# 打包、测试、并将snapshot包推送到maven中央仓库
 $ mvn deploy
 ```
-上述命令将snapshot包推送到maven中央仓库
 
-修改pom文件中的版本号，从2.7.x-SNAPSHOT改为2.7.x， 目前有3个地方需要修改。建议全文搜索。
+
+【然后】修改pom文件中的版本号，从 2.7.4-SNAPSHOT 改为 2.7.4， 目前有3个地方需要修改。建议全文搜索。
 
 ```bash
+# 1. 验证安装
 $ mvn clean install -Prelease
+
+# 2. 部署
+# 注意：
+# - 所有被deploy到远程[maven仓库](http://repository.apache.org)的Artifacts都会处于staging状态
+# - 在deploy执行过程中，有可能因为网络等原因被中断，如果是这样，可以重新开始执行。
+# - deploy执行到maven仓库的时候，请确认下包的总量是否正确。多次出现了包丢失的情况，特别是dubbo-parent包。
 $ mvn deploy -Prelease -DskipTests
-```
 
-所有被deploy到远程[maven仓库](http://repository.apache.org)的Artifacts都会处于staging状态
-
-> 注意：
-> - 在deploy执行过程中，有可能因为网络等原因被中断，如果是这样，可以重新开始执行。
-> - deploy执行到maven仓库的时候，请确认下包的总量是否正确。多次出现了包丢失的情况，特别是dubbo-parent包。
-
-```bash
-# 拷贝`distribution/target`下的source相关的包到svn本地仓库`dubbo/${release_version}`
-
+# 3. 签名
+# 针对 distribution/target 下的source相关的包
 $ shasum -a 512 apache-dubbo-${release_version}-source-release.zip >> apache-dubbo-${release_version}-source-release.zip.sha512
 
 # 如果有binary release要同时发布, 针对`bin-release.zip`，需要增加`-b`参数，表明是一个二进制文件
 $ shasum -b -a 512 apache-dubbo-${release_version}-bin-release.zip >> apache-dubbo-${release_version}-bin-release.zip.sha512
 ```
 
-关闭Maven的staging仓库: 
-登录http://repository.apache.org，点击左侧的 `Staging repositories`，然后搜索Dubbo关键字，会出现一系列的仓库，选择你最近上传的仓库，然后点击上方的Close按钮，这个过程会进行一系列检查，检查通过以后，在下方的Summary标签页上出现一个连接，请保存好这个链接，需要放在接下来的投票邮件当中。
+【最后】关闭Maven的staging仓库: 
+登录http://repository.apache.org，点击左侧的 `Staging repositories`，
+然后搜索Dubbo关键字，会出现一系列的仓库，选择你最近上传的仓库，然后点击上方的Close按钮，
+这个过程会进行一系列检查，检查通过以后，在下方的Summary标签页上出现一个连接，请保存好这个链接，需要放在接下来的投票邮件当中。
 链接应该是类似这样的: https://repository.apache.org/content/repositories/orgapachedubbo-101
 
 > 请注意点击Close可能会出现失败，通常是网络原因，只要重试几次就可以了。可以点击Summary旁边的Activity标签来确认。
 
+#### 7.2.3 java 正式版发布
+
+1. 将[dev](https://dist.apache.org/repos/dist/dev/dubbo)目录下的发布包添加到[release](https://dist.apache.org/repos/dist/release/dubbo)目录下，KEYS有更新的，也需要同步更新。
+2. 删除[dev](https://dist.apache.org/repos/dist/dev/dubbo)目录下的发布包
+3. 删除[release](https://dist.apache.org/repos/dist/release/dubbo)目录下上一个版本的发布包，这些包会被自动保存在[这里](https://archive.apache.org/dist/dubbo)
+4. 发布GitHub上的[release notes](https://github.com/apache/dubbo/releases)
+5. 修改GitHub的Readme文件，将版本号更新到最新发布的版本
+6. 在官网下载[页面](http://dubbo.apache.org/en-us/blog/download.html)上添加最新版本的下载链接。最新的下载链接应该类似[这样](https://www.apache.org/dyn/closer.cgi?path=dubbo/2.7.4/apache-dubbo-2.7.4-source-release.zip). 同时更新以前版本的下载链接，改为类似[这样](https://archive.apache.org/dist/dubbo/2.7.4/apache-dubbo-2.7.4-bin-release.zip). 具体可以参考过往的[下载链接](https://github.com/apache/dubbo-website/blob/asf-site/blog/en-us/download.md)
+7. 合并`2.7.4-release`分支到对应的主干分支， 然后删除相应的release分支，例如: `git push origin --delete 2.7.4-release`
 
 ### 7.3 js
 
@@ -303,6 +326,7 @@ TODO
 
 ### 8.1. 提出发版投票
 
+范例1: 
 - TO: dev@dubbo.apache.org
 - Title: [VOTE]: Release Apache dubbo-go-hessian2 v1.3.0 RC1
 
@@ -329,7 +353,45 @@ Hello Dubbo/Dubbogo Community,
  The Apache Dubbo-go Team
  ```
 
+范例2:
+```
+Hi, All
 
+This is a call for a vote to release Apache Dubbo Spring Boot version
+2.7.4.1.
+
+The release candidates (there will be only source release in this version):
+https://dist.apache.org/repos/dist/dev/dubbo/dubbo-spring-boot/2.7.4.1/ <
+https://dist.apache.org/repos/dist/dev/dubbo/dubbo-spring-boot/2.7.4.1/>
+
+Git tag for the release:
+https://github.com/apache/dubbo-spring-boot-project/tree/2.7.4.1 <
+https://github.com/apache/dubbo-spring-boot-project/tree/2.7.4.1>
+
+Hash for the release tag:
+f2d695a20fcefee61cba3b4acecec789bb875350
+
+Release Notes:
+https://github.com/apache/dubbo-spring-boot-project/releases/tag/2.7.4.1 <
+https://github.com/apache/dubbo-spring-boot-project/releases/tag/2.7.4.1>
+
+The artifacts have been signed with Key: 28681CB1, which can be
+found in the keys file:
+https://dist.apache.org/repos/dist/dev/dubbo/KEYS <
+https://dist.apache.org/repos/dist/dev/dubbo/KEYS>
+
+The vote will be open for at least 72 hours or until the necessary number of
+votes are reached.
+
+Please vote accordingly:
+
+[ ] +1 approve
+[ ] +0 no opinion
+[ ] -1 disapprove with the reason
+
+Thanks,
+The Apache Dubbo Team
+```
 ### 8.2. PMC 投票邮件回复
 
 
